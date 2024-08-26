@@ -68,8 +68,9 @@
       </form>
       <div class="social-auth-links text-center mb-3">
         <p>- OR -</p>
-        <a href="{% url 'login_with_github' %}">Login with GitHub</a>
-
+        <a href="{% url 'login_with_github' %}" class="btn btn-block btn-dark">
+          <i class="fab fa-github mr-2"></i> Login with GitHub
+        </a>
       </div>
       <!-- Add messages here -->
 {% if messages %}
