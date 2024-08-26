@@ -71,7 +71,7 @@
                 </a>
               </li>
               <li class="nav-item">
-                <a href="{% url 'first' %}" class="nav-link active">
+                <a href="{% url 'first' %}" class="nav-link">
                   <i class="far fa-circle nav-icon"></i>
                   <p> Workgroups </p>
                 </a>
@@ -91,7 +91,7 @@
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1>Dashboard</h1>
+            <h1>Workgroups & Guilds Dashboard</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -166,30 +166,36 @@
               </form>
               
                
-                <div class="container-fluid">
-                    <p>Selected Date Range: <span id="selectedStartDate">{{ request.GET.startdate|default:"None" }}</span> to <span id="selectedEndDate">{{ request.GET.enddate|default:"None" }}</span></p>
-                    
-                    <div class="row mb-2"> <!-- Added mb-4 for margin-bottom -->
-                        <!-- Existing Workgroup Chart -->
-                        <div class="col-md-6">
-                            <canvas id="workgroupChart"></canvas>
-                        </div>
-                        <!-- New Task and Contributor Chart -->
-                        <div class="col-md-6">
-                            <canvas id="taskContributorChart"></canvas>
-                        </div>
+              <div class="container-fluid">
+                <p>Selected Date Range: <span id="selectedStartDate">{{ request.GET.startdate|default:"None" }}</span> to <span id="selectedEndDate">{{ request.GET.enddate|default:"None" }}</span></p>
+            
+                <!-- First Row: Workgroup Chart -->
+                <div class="row mb-4"> <!-- Added mb-4 for margin-bottom -->
+                    <!-- Existing Workgroup Chart -->
+                    <div class="col-md-6">
+                        <canvas id="workgroupChart"></canvas>
                     </div>
-                    <div class="row" style="margin-top: 50px;"></div> <!-- Adjust the margin value as needed -->
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <canvas id="monthlyAgixMinsChart" width="400" height="200"></canvas>
-                        </div>
-                        <div class="col-md-6">
-                            <canvas id="walletDistributionChart" width="400" height="200"></canvas>
-                        </div>
+                    <!-- New Task and Contributor Chart -->
+                    <div class="col-md-6">
+                        <canvas id="taskContributorChart"></canvas>
                     </div>
                 </div>
+            
+                <!-- Third Row: Monthly AGIX and MINS Chart -->
+                <div class="row mb-4"> <!-- mb-4 adds margin-bottom -->
+                    <div class="col">
+                        <canvas id="monthlyAgixMinsChart"></canvas>
+                    </div>
+                </div>
+            
+                <!-- Fourth Row: Wallet Distribution Chart -->
+                <div class="row mb-4"> <!-- mb-4 adds margin-bottom -->
+                    <div class="col">
+                        <canvas id="walletDistributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
                 
                 <script id="monthly-distribution-data" type="application/json">
                     {{ monthly_distribution|safe }}
@@ -236,7 +242,8 @@
 <script src="{% static 'plugins/moment/moment.min.js' %}"></script>
 <script src="{% static 'plugins/tempusdominus-bootstrap-4/js/tempusdominus-bootstrap-4.min.js' %}"></script>
 <script>
-   $(function () {
+  
+  $(function () {
     // Initialize date pickers
     $('#startdate').datetimepicker({
         format: 'YYYY-MM-DD',
@@ -280,231 +287,160 @@
     $('input[name="subgroups[]"], #subgroup_all').on('change', function () {
         $('#filters-form').submit();
     });
+
+    // Function to parse JSON data
+    function parseJSONData(elementId) {
+        return JSON.parse(document.getElementById(elementId).textContent);
+    }
+
+    // Function to create a bar chart
+    function createBarChart(ctx, labels, datasets, titleText, xLabel = '', yLabel = 'Total Value', displayXLabels = true) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: titleText
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: !!xLabel,
+                            text: xLabel
+                        },
+                        display: displayXLabels
+                    },
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: !!yLabel,
+                            text: yLabel
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     // Parse the embedded JSON data
-    var monthlyDistribution = JSON.parse(document.getElementById('monthly-distribution-data').textContent);
-    var taskContributorData = JSON.parse(document.getElementById('task-contributor-data').textContent);
-    var monthlyAgixMinsDistribution = JSON.parse(document.getElementById('monthly-agix-mins-distribution-data').textContent);
-    var walletDistributionData = JSON.parse(document.getElementById('wallet-distribution-data').textContent);
+    var monthlyDistribution = parseJSONData('monthly-distribution-data');
+    var taskContributorData = parseJSONData('task-contributor-data');
+    var monthlyAgixMinsDistribution = parseJSONData('monthly-agix-mins-distribution-data');
+    var walletDistributionData = parseJSONData('wallet-distribution-data');
 
-    // First chart (Monthly Distribution: AGIX and MINS by Subgroup)
-    var subgroupLabels = [];
-    var agixData1 = [];
-    var minsData1 = [];
+    // Prepare data for charts
+    function prepareMonthlyDistributionData() {
+        var subgroupLabels = [], agixData1 = [], minsData1 = [], usdData1 = [];
 
-    monthlyDistribution.forEach(function(item) {
-        subgroupLabels.push(item.subgroup);
-        agixData1.push(item.total_agix || 0); // Ensure there are no null values
-        minsData1.push(item.total_mins || 0); // Ensure there are no null values
-    });
+        monthlyDistribution.forEach(function(item) {
+            subgroupLabels.push(item.subgroup);
+            agixData1.push(item.total_agix || 0);
+            minsData1.push(item.total_mins || 0);
+            usdData1.push(item.total_usd || 0);
+        });
 
-    var ctx1 = document.getElementById('workgroupChart').getContext('2d');
-    var workgroupChart = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-            labels: subgroupLabels,
-            datasets: [
-                {
-                    label: 'AGIX',
-                    data: agixData1,
-                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
-                    borderColor: 'rgba(255, 206, 86, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'MINS',
-                    data: minsData1,
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Monthly Distribution: AGIX and MINS by Subgroup'
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Subgroup'
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Total Value'
-                    }
-                }
+        return { labels: subgroupLabels, agixData1, minsData1, usdData1 };
+    }
+
+    function prepareTaskContributorData() {
+        var taskLabels = [], taskData = [], contributorData = [];
+
+        taskContributorData.forEach(function(item) {
+            var monthYear = `${item.month.split("-")[0]}-${item.month.split("-")[1]}`;
+
+            if (!taskLabels.includes(monthYear)) {
+                taskLabels.push(monthYear);
             }
-        }
-    });
 
-    // Second chart (Task & Contributor Distribution)
-    var taskLabels = [];
-    var taskData = [];
-    var contributorData = [];
+            taskData.push(item.task_count);
+            contributorData.push(item.contributor_count);
+        });
 
-    taskContributorData.forEach(function(item) {
-        var monthYear = `${item.month.split("-")[0]}-${item.month.split("-")[1]}`;
+        return { labels: taskLabels, taskData, contributorData };
+    }
 
-        if (!taskLabels.includes(monthYear)) {
-            taskLabels.push(monthYear);
-        }
+    function prepareMonthlyAgixMinsDistributionData() {
+        var agixMinsLabels = [], agixData2 = [], minsData2 = [], usdData2 = [];
 
-        taskData.push(item.task_count);
-        contributorData.push(item.contributor_count);
-    });
+        monthlyAgixMinsDistribution.forEach(function(item) {
+            var monthYear = `${item.month.split("-")[0]}-${item.month.split("-")[1]}`;
+            agixMinsLabels.push(monthYear);
+            agixData2.push(item.total_agix || 0);
+            minsData2.push(item.total_mins || 0);
+            usdData2.push(item.total_usd || 0);
+        });
 
-    var ctx2 = document.getElementById('taskContributorChart').getContext('2d');
-    var taskContributorChart = new Chart(ctx2, {
-        type: 'bar',
-        data: {
-            labels: taskLabels,
-            datasets: [
-                {
-                    label: 'Tasks',
-                    data: taskData,
-                    backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                    borderColor: 'rgba(255, 159, 64, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Contributors',
-                    data: contributorData,
-                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Task & Contributor Distribution'
-                }
-            },
-            scales: {
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Month'
-                    }
-                },
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
+        return { labels: agixMinsLabels, agixData2, minsData2, usdData2 };
+    }
 
-    // Third chart (Monthly AGIX and MINS Distribution)
-    var agixMinsLabels = [];
-    var agixData2 = [];
-    var minsData2 = [];
+    function prepareWalletDistributionData() {
+        var agixData3 = [], minsData3 = [], usdData3 = [];
 
-    monthlyAgixMinsDistribution.forEach(function(item) {
-        var monthYear = `${item.month.split("-")[0]}-${item.month.split("-")[1]}`;
-        agixMinsLabels.push(monthYear);
-        agixData2.push(item.total_agix);
-        minsData2.push(item.total_mins);
-    });
+        walletDistributionData.forEach(function(item) {
+            agixData3.push(item.total_agix || 0);
+            minsData3.push(item.total_mins || 0);
+            usdData3.push(item.total_usd || 0);
+        });
 
-    var ctx3 = document.getElementById('monthlyAgixMinsChart').getContext('2d');
-    var monthlyAgixMinsChart = new Chart(ctx3, {
-        type: 'bar',
-        data: {
-            labels: agixMinsLabels,
-            datasets: [
-                {
-                    label: 'AGIX',
-                    data: agixData2,
-                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
-                    borderColor: 'rgba(255, 206, 86, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'MINS',
-                    data: minsData2,
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Monthly AGIX and MINS Distribution'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                },
-                x: {
-                    type: 'category',
-                    labels: agixMinsLabels
-                }
-            }
-        }
-    });
+        return { agixData3, minsData3, usdData3 };
+    }
 
-    // Fourth chart - Wallet Distribution (AGIX and MINS)
-    var agixData3 = [];
-    var minsData3 = [];
+    // Create charts
+    var monthlyData = prepareMonthlyDistributionData();
+    createBarChart(
+        document.getElementById('workgroupChart').getContext('2d'),
+        monthlyData.labels,
+        [
+            { label: 'AGIX', data: monthlyData.agixData1, backgroundColor: 'rgba(255, 206, 86, 0.2)', borderColor: 'rgba(255, 206, 86, 1)', borderWidth: 1 },
+            { label: 'MINS', data: monthlyData.minsData1, backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
+            { label: 'USD', data: monthlyData.usdData1, backgroundColor: 'rgba(255, 99, 132, 0.2)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }
+        ],
+        'Monthly Distribution: AGIX, MINS, and USD by Subgroup'
+    );
 
-    walletDistributionData.forEach(function(item) {
-        agixData3.push(item.total_agix);
-        minsData3.push(item.total_mins);
-    });
+    var taskContributorData = prepareTaskContributorData();
+    createBarChart(
+        document.getElementById('taskContributorChart').getContext('2d'),
+        taskContributorData.labels,
+        [
+            { label: 'Tasks', data: taskContributorData.taskData, backgroundColor: 'rgba(255, 159, 64, 0.2)', borderColor: 'rgba(255, 159, 64, 1)', borderWidth: 1 },
+            { label: 'Contributors', data: taskContributorData.contributorData, backgroundColor: 'rgba(75, 192, 192, 0.2)', borderColor: 'rgba(75, 192, 192, 1)', borderWidth: 1 }
+        ],
+        'Task & Contributor Distribution',
+        'Month'
+    );
 
-    var ctx4 = document.getElementById('walletDistributionChart').getContext('2d');
-    var walletDistributionChart = new Chart(ctx4, {
-        type: 'bar',
-        data: {
-            labels: Array(walletDistributionData.length).fill(''), // Empty labels to avoid showing wallet addresses
-            datasets: [
-                {
-                    label: 'AGIX',
-                    data: agixData3,
-                    backgroundColor: 'rgba(255, 206, 86, 0.2)',
-                    borderColor: 'rgba(255, 206, 86, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'MINS',
-                    data: minsData3,
-                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Wallet Distribution (AGIX and MINS)'
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true
-                },
-                x: {
-                    display: false // Hide the x-axis labels
-                }
-            }
-        }
-    });
+    var agixMinsData = prepareMonthlyAgixMinsDistributionData();
+    createBarChart(
+        document.getElementById('monthlyAgixMinsChart').getContext('2d'),
+        agixMinsData.labels,
+        [
+            { label: 'AGIX', data: agixMinsData.agixData2, backgroundColor: 'rgba(255, 206, 86, 0.2)', borderColor: 'rgba(255, 206, 86, 1)', borderWidth: 1 },
+            { label: 'MINS', data: agixMinsData.minsData2, backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
+            { label: 'USD', data: agixMinsData.usdData2, backgroundColor: 'rgba(255, 99, 132, 0.2)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }
+        ],
+        'Monthly AGIX, MINS, and USD Distribution'
+    );
+
+    var walletData = prepareWalletDistributionData();
+    createBarChart(
+        document.getElementById('walletDistributionChart').getContext('2d'),
+        Array(walletDistributionData.length).fill(''), // Empty labels to avoid showing wallet addresses
+        [
+            { label: 'AGIX', data: walletData.agixData3, backgroundColor: 'rgba(255, 206, 86, 0.2)', borderColor: 'rgba(255, 206, 86, 1)', borderWidth: 1 },
+            { label: 'MINS', data: walletData.minsData3, backgroundColor: 'rgba(54, 162, 235, 0.2)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 },
+            { label: 'USD', data: walletData.usdData3, backgroundColor: 'rgba(255, 99, 132, 0.2)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }
+        ],
+        'Wallet Distribution (AGIX, MINS, and USD)',
+        '', '', false
+    );
 });
 
     </script>
