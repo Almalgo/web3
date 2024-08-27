@@ -10,7 +10,8 @@ from .models import Treasury_guild
 import json
 from django.contrib.auth import authenticate, login as auth_login , logout
 from django.contrib import messages
-
+from supabase import create_client, Client
+from django.conf import settings
 
 def Signout(request):
     logout(request)
@@ -31,6 +32,18 @@ def login(request):
             messages.error(request, 'Invalid username or password.')
     
     return render(request, 'login.html')
+
+def login_with_github(request):
+    url ='members'
+    return redirect(url)
+
+def github_callback(request):
+    code = request.GET.get("code")
+    supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+    
+    response = supabase.auth.sign_in_with_provider(provider="github", code=code) 
+    return redirect('members')
+
 def first(request):
     # Calculate the total minutes, USD, and AGIX
     total_minutes = Treasury_guild.objects.aggregate(total_mins=Sum('mins'))['total_mins'] or 0
@@ -94,14 +107,7 @@ def first(request):
 
     return render(request, 'first.html', context)
 
-from django.shortcuts import render
-from django.utils.dateparse import parse_date
-from django.utils import timezone
-from django.db.models import Sum, Count
-from django.db.models.functions import TruncMonth
-from .models import Treasury_guild
-import json
-from django.core.serializers.json import DjangoJSONEncoder
+
 
 def workgroup(request):
     all_subgroups = list(Treasury_guild.objects.values_list('subgroup', flat=True).distinct())
@@ -148,26 +154,28 @@ def workgroup(request):
     # Annotate data for charts
     monthly_distribution = queryset.values('subgroup').annotate(
         total_mins=Sum('mins'),
-        total_agix=Sum('agix')
+        total_agix=Sum('agix'),
+         total_usd=Sum('usd')
     ).order_by('subgroup')
 
     task_contributor_data = queryset.annotate(
-        month=TruncMonth('completed_at')
-    ).values('month').annotate(
-        task_count=Count('task_name'),
-        contributor_count=Count('wallet_owner')
-    ).order_by('month')
-
+    month=TruncMonth('completed_at')
+).values('month').annotate(
+    task_count=Count('task_name', distinct=True),
+    contributor_count=Count('wallet_owner')
+).order_by('month')
     monthly_agix_mins_distribution = queryset.annotate(
         month=TruncMonth('completed_at')
     ).values('month').annotate(
         total_mins=Sum('mins'),
-        total_agix=Sum('agix')
+        total_agix=Sum('agix'),
+         total_usd=Sum('usd')
     ).order_by('month')
 
     wallet_distribution = queryset.values('wallet_address').annotate(
         total_mins=Sum('mins'),
-        total_agix=Sum('agix')
+        total_agix=Sum('agix'),
+         total_usd=Sum('usd')
     ).order_by('wallet_address')
 
     # Get distinct subgroups for filter
@@ -181,8 +189,8 @@ def workgroup(request):
         'wallet_distribution': json.dumps(list(wallet_distribution), cls=DjangoJSONEncoder),
         'start_date': selected_start_date,
         'end_date': selected_end_date,
-        'subgroups': subgroups,  # Pass subgroups to the template
-        'selected_subgroups': selected_subgroups,  # Pass selected subgroups to the template
+        'subgroups': subgroups, 
+        'selected_subgroups': selected_subgroups, 
     }
 
     return render(request, 'work_guild.html', context)
@@ -214,13 +222,15 @@ def workgroup_data(request):
     # Annotate data for charts
     monthly_distribution = queryset.values('subgroup').annotate(
         total_mins=Sum('mins'),
-        total_agix=Sum('agix')
+        total_agix=Sum('agix'),
+         total_usd=Sum('usd')
     ).order_by('subgroup')
 
     # Prepare chart data
     subgroup_labels = [item['subgroup'] for item in monthly_distribution]
     mins_data = [item['total_mins'] for item in monthly_distribution]
     agix_data = [item['total_agix'] for item in monthly_distribution]
+    usd_data = [item['total_usd'] for item in monthly_distribution]
 
     return JsonResponse({
         'subgroup_chart': {
@@ -229,18 +239,26 @@ def workgroup_data(request):
                 {
                     'label': 'AGIX',
                     'data': agix_data,
-                    'backgroundColor': 'rgba(255, 206, 86, 0.2)',
+                    'backgroundColor': 'rgba(255, 206, 86, 0.2)',  # Yellow
                     'borderColor': 'rgba(255, 206, 86, 1)',
                     'borderWidth': 1
                 },
                 {
                     'label': 'MINS',
                     'data': mins_data,
-                    'backgroundColor': 'rgba(54, 162, 235, 0.2)',
-                    'borderColor': 'rgba(54, 162, 235, 1)',
+                    'backgroundColor': 'rgba(75, 192, 192, 0.2)',  # Teal
+                    'borderColor': 'rgba(75, 192, 192, 1)',
+                    'borderWidth': 1
+                },
+                {
+                    'label': 'USD',
+                    'data': usd_data,
+                    'backgroundColor': 'rgba(255, 99, 132, 0.2)',  # Red
+                    'borderColor': 'rgba(255, 99, 132, 1)',
                     'borderWidth': 1
                 }
-            ]
+                ]
+
         }
     })
 
@@ -273,5 +291,5 @@ def members(request):
         'top_agix_group': top_agix_group,
         'top_usd_group': top_usd_group,
     }
-    return render(request, 'members.html', context)
+    return render(request, 'Members.html', context)
 

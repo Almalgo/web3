@@ -38,7 +38,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'webb3'
+    'webb3',
+   'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.github',
+
 ]
 
 MIDDLEWARE = [
@@ -49,6 +55,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+     'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'web3.urls'
@@ -70,6 +77,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'web3.wsgi.application'
+from decouple import config
 
 
 # Database
@@ -78,7 +86,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
         'NAME': 'postgres',
-         'USER':config('DB_USER'),
+        'USER':config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': 'aws-0-eu-central-1.pooler.supabase.com',  
         'PORT': '6543',          
@@ -127,3 +135,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+# Additional configurations
+LOGIN_REDIRECT_URL = 'members'
+LOGOUT_REDIRECT_URL = 'login'
+
+SUPABASE_URL = config("SUPABASE_URL")
+SUPABASE_KEY = config('DB_PASSWORD')
+
