@@ -12,6 +12,8 @@ from django.contrib.auth import authenticate, login as auth_login , logout
 from django.contrib import messages
 from supabase import create_client, Client
 from django.conf import settings
+import random
+import string
 
 def Signout(request):
     logout(request)
@@ -33,16 +35,63 @@ def login(request):
     
     return render(request, 'login.html')
 
-def login_with_github(request):
-    url ='members'
-    return redirect(url)
 
-def github_callback(request):
+
+
+from django.shortcuts import redirect
+from django.conf import settings
+from supabase import create_client
+from django.http import JsonResponse
+import random
+import string
+from django.shortcuts import redirect
+from django.conf import settings
+
+import random
+import string
+from django.conf import settings
+from django.shortcuts import redirect
+
+def login_with_discord(request):
+    # Generate a random state parameter
+    state = ''.join(random.choices(string.ascii_uppercase + string.digits, k=16))
+
+    # Store the state parameter in the session to validate it later
+    request.session['oauth_state'] = state
+
+    # Discord OAuth authorization URL
+    discord_auth_url = (
+        "https://discord.com/oauth2/authorize?"
+        "client_id=1277781129784721471&"
+        "response_type=code&"
+        "redirect_uri=http%3A%2F%2F127.0.0.1%3A8000%2Fmembers&"
+        "scope=identify&"
+        "state={state}"
+    )
+
+    print("Redirecting to:", discord_auth_url)  # Debugging output
+
+    return redirect(discord_auth_url)
+
+
+def discord_callback(request):
     code = request.GET.get("code")
-    supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-    
-    response = supabase.auth.sign_in_with_provider(provider="github", code=code) 
-    return redirect('members')
+
+    if not code:
+        return JsonResponse({"error": "No code provided by Discord"}, status=400)
+
+    # Initialize Supabase client
+    supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+
+    # Exchange the code for a token using Supabase
+    response = supabase.auth.sign_in_with_provider(provider="discord", code=code)
+
+    if response.status_code == 200:
+        # Redirect to 'members' page after successful authentication
+        return redirect('members')
+    else:
+        # Handle authentication failure
+        return JsonResponse({"error": "Failed to authenticate with Discord"}, status=response.status_code)
 
 def first(request):
     # Calculate the total minutes, USD, and AGIX
